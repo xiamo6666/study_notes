@@ -51,6 +51,8 @@ public class NioModel {
 
     }
 
+
+
     /**
      * nio 之同步非堵塞
      */
@@ -89,6 +91,12 @@ public class NioModel {
 
 
         }
+    }
+
+    @Test
+    public void testRtmp(){
+       String rul =  "rtmp://ys.uavebit.com:1935/live";
+        System.out.println();
     }
 
 }
