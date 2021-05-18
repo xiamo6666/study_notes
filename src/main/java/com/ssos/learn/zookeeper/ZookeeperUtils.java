@@ -9,7 +9,7 @@ import org.apache.zookeeper.data.Stat;
 
 /**
  * @ClassName: ZookeeperUtils
- * @Description: dto
+ * @Description: 事件监控
  * @Author: xwl
  * @Date: 2021/5/18 16:44
  * @Vsersion: 1.0
