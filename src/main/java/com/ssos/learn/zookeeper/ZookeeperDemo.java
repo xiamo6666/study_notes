@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.stream.IntStream;
 
 /**
  * @ClassName: ZookeeperDemo
@@ -28,16 +29,16 @@ public class ZookeeperDemo {
         ZookeeperUtils zookeeperUtils = new ZookeeperUtils("/aaa", connection);
         connection.getData("/aaa", zookeeperUtils, zookeeperUtils, null);
 //        zooKeeper.create("/deviceNumber","".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
-        Semaphore semaphore = new Semaphore(1);
-        semaphore.acquire();
-        semaphore.acquire();
+//        Semaphore semaphore = new Semaphore(1);
+//        semaphore.acquire();
+//        semaphore.acquire();
     }
 
-    public ZooKeeper getConnection() {
+    public static ZooKeeper getConnection() {
         CountDownLatch countDownLatch = new CountDownLatch(1);
         ZooKeeper zooKeeper = null;
         try {
-            zooKeeper = new ZooKeeper("10.10.11.104:2181/lock", 2000, new Watcher() {
+            zooKeeper = new ZooKeeper("127.0.0.1:2181/lock", 2000, new Watcher() {
                 @Override
                 public void process(WatchedEvent watchedEvent) {
                     Event.KeeperState state = watchedEvent.getState();
@@ -112,10 +113,8 @@ public class ZookeeperDemo {
     @Test
     public void lock() throws Exception {
 
-        ZookeeperDistributedLock zookeeperDistributedLock = new ZookeeperDistributedLock();
-        ZookeeperDistributedLock zookeeperDistributedLock1 = new ZookeeperDistributedLock();
-        zookeeperDistributedLock.setZk(getConnection());
-        zookeeperDistributedLock1.setZk(getConnection());
+        ZookeeperDistributedLock zookeeperDistributedLock = new ZookeeperDistributedLock("", "");
+        ZookeeperDistributedLock zookeeperDistributedLock1 = new ZookeeperDistributedLock("", "");
         zookeeperDistributedLock.tryLock();
         System.out.println(zookeeperDistributedLock.getThreadName() + ":获取到分布式锁");
         zookeeperDistributedLock1.tryLock();
@@ -142,5 +141,27 @@ public class ZookeeperDemo {
             }
         }, "123");
         countDownLatch.await();
+    }
+
+    public static void main(String[] args) {
+        IntStream.range(1, 10).forEach(p -> {
+            new Thread(() -> {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                ZookeeperDistributedLock zookeeperDistributedLock = new ZookeeperDistributedLock("","");
+                zookeeperDistributedLock.tryLock();
+                System.out.println(Thread.currentThread().getName() + "获取到lock");
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                zookeeperDistributedLock.release();
+            }).start();
+        });
+
     }
 }

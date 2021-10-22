@@ -3,8 +3,16 @@ package com.ssos.learn.io.nio;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
+import io.netty.channel.group.ChannelGroup;
+import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.util.AttributeKey;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -22,27 +30,40 @@ public class NettyDemo {
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.group(new NioEventLoopGroup(2), new NioEventLoopGroup(8))
                 .channel(NioServerSocketChannel.class)
-                .option(ChannelOption.SO_BACKLOG, 1024)
-                .childHandler(new ChannelInitializer<Channel>() {
+                .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
-                    protected void initChannel(Channel channel) throws Exception {
-                        channel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
-                            @Override
-                            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-                                System.out.println(ctx.pipeline());
-                                ByteBuf byteBuf = (ByteBuf) msg;
-//                                System.out.println(((InetSocketAddress) ctx.channel().localAddress()).getPort());
-                                String message = byteBuf.toString(StandardCharsets.UTF_8);
-                                System.out.println(message);
-                            }
-                        });
+                    protected void initChannel(SocketChannel channel) throws Exception {
+                        channel.pipeline().addLast(new HttpServerCodec(),
+                                new HttpObjectAggregator(65535),
+                                new WebSocketServerProtocolHandler("/"),
+                                new ChannelInboundHandlerAdapter() {
+                                    @Override
+                                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                                        System.out.println("2");
+                                        System.out.println(msg);
+                                        ctx.channel().attr(AttributeKey.valueOf("123")).set("");
+                                        ctx.fireChannelRead(msg);
+                                    }
+                                },
+
+                                new SimpleChannelInboundHandler<Object>() {
+                                    @Override
+                                    protected void channelRead0(ChannelHandlerContext channelHandlerContext, Object o) throws Exception {
+                                        System.out.println("1");
+                                        channelHandlerContext.fireChannelRead("456");
+                                    }
+
+                                    @Override
+                                    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+                                        super.handlerRemoved(ctx);
+                                    }
+                                });
+
                     }
                 });
 
         try {
             serverBootstrap.bind(9000).sync();
-//            System.out.println("wocao");
-//            serverBootstrap.bind(9001).sync();
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -51,5 +72,6 @@ public class NettyDemo {
     @Test
     public void testM() {
         System.out.println(100 % 5);
+ 
     }
 }

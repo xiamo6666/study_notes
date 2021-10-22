@@ -1,5 +1,8 @@
 package com.ssos.learn.zookeeper;
 
+
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
@@ -14,7 +17,7 @@ import java.util.concurrent.CountDownLatch;
  * @Date: 2021/5/19 16:35
  * @Vsersion: 1.0
  */
-
+@Slf4j
 public class ZookeeperDistributedLock implements Watcher, AsyncCallback.StringCallback, AsyncCallback.Children2Callback, AsyncCallback.StatCallback {
     private ZooKeeper zk;
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -30,9 +33,6 @@ public class ZookeeperDistributedLock implements Watcher, AsyncCallback.StringCa
         return threadName;
     }
 
-    public void setZk(ZooKeeper zk) {
-        this.zk = zk;
-    }
 
     public void setPathName(String pathName) {
         this.pathName = pathName;
@@ -42,12 +42,20 @@ public class ZookeeperDistributedLock implements Watcher, AsyncCallback.StringCa
         return pathName;
     }
 
+    /**
+     * @param ip   zk ip
+     * @param path 需要锁住的path
+     */
+    public ZookeeperDistributedLock(String ip, String path) {
+        this.zk = getConnection(ip, path);
+    }
+
     public void tryLock() {
         try {
-            threadName = Thread.currentThread().getName();
+            threadName = Thread.currentThread().getName() + "-" + RandomUtils.nextInt(10000, 19999);
             //判断锁状态（要求锁可重入）
             byte[] data = zk.getData("/", false, new Stat());
-            if (new String(data).equals(threadName)) {
+            if (data != null && new String(data).equals(threadName)) {
                 return;
             }
             zk.create("/tryLock", threadName.getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL, this, "abc");
@@ -60,7 +68,7 @@ public class ZookeeperDistributedLock implements Watcher, AsyncCallback.StringCa
     public void release() {
         try {
             zk.close();
-        } catch (InterruptedException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -137,6 +145,7 @@ public class ZookeeperDistributedLock implements Watcher, AsyncCallback.StringCa
 
     /**
      * //StringCallback
+     * 节点创建事件
      *
      * @param rc
      * @param path
@@ -167,4 +176,83 @@ public class ZookeeperDistributedLock implements Watcher, AsyncCallback.StringCa
             zk.getChildren("/", false, this, "123");
         }
     }
+
+
+    public ZooKeeper getConnection(String ip, String path) {
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        ZooKeeper zooKeeper = null;
+        try {
+            zooKeeper = new ZooKeeper(ip + path, 2000, new Watcher() {
+                @Override
+                public void process(WatchedEvent watchedEvent) {
+                    Event.KeeperState state = watchedEvent.getState();
+                    switch (state) {
+                        case Unknown:
+                            break;
+                        case Disconnected:
+                            break;
+                        case NoSyncConnected:
+                            break;
+                        case SyncConnected:
+                            countDownLatch.countDown();
+                            log.debug("连接完成");
+                            break;
+                        case AuthFailed:
+                            break;
+                        case ConnectedReadOnly:
+                            break;
+                        case SaslAuthenticated:
+                            break;
+                        case Expired:
+                            break;
+                        case Closed:
+                            log.debug("断开事件");
+                            break;
+                        default:
+                            log.debug("zk");
+                    }
+                    Event.EventType type = watchedEvent.getType();
+                    switch (type) {
+                        case None:
+                            break;
+                        case NodeCreated:
+                            log.debug("create");
+                            break;
+                        case NodeDeleted:
+                            log.debug("delete");
+                            break;
+                        case NodeDataChanged:
+                            log.debug("node data changed");
+                            break;
+                        case NodeChildrenChanged:
+                            break;
+                        case DataWatchRemoved:
+                            break;
+                        case ChildWatchRemoved:
+                            break;
+                        case PersistentWatchRemoved:
+                            break;
+                        default:
+                            log.debug("zk");
+                    }
+
+                }
+
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        try {
+            assert zooKeeper != null;
+            if (zooKeeper.exists("/", false) == null) {
+                zooKeeper.create("/", null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                log.debug("初始化根节点");
+            }
+            countDownLatch.await();
+        } catch (Exception e) {
+            log.debug("根节点初始化完成");
+        }
+        return zooKeeper;
+    }
+
 }
