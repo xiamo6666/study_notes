@@ -32,6 +32,7 @@ public class TestDisruptor {
         disruptor.start();
         RingBuffer<LongEventFactory.LongEvent> ringBuffer = disruptor.getRingBuffer();
         ringBuffer.publishEvent((longEvent, age, l) -> longEvent.set(age));
+
     }
 
     /**
@@ -40,7 +41,8 @@ public class TestDisruptor {
     static public void fun2() {
         Disruptor<LongEventFactory.LongEvent> disruptor = new Disruptor<>(LongEventFactory.LongEvent::new,
                 8, Executors.defaultThreadFactory());
-        disruptor.handleEventsWith((longEvent, var2, var3) -> {
+        disruptor.handleEventsWith(
+                (longEvent, var2, var3) -> {
             System.out.println(longEvent.value);
             System.out.println(Thread.currentThread().getName());
             TimeUnit.SECONDS.sleep(10);
