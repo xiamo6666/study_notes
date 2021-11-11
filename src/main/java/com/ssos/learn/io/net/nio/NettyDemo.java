@@ -1,4 +1,4 @@
-package com.ssos.learn.io.nio;
+package com.ssos.learn.io.net.nio;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelHandlerContext;
