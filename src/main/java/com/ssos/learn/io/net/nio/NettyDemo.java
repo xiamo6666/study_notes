@@ -1,18 +1,22 @@
 package com.ssos.learn.io.net.nio;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.buffer.*;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
+
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
+import io.netty.util.CharsetUtil;
 import org.junit.jupiter.api.Test;
+
+import java.net.InetSocketAddress;
 
 /**
  * @ClassName: NettyDemo
@@ -67,8 +71,78 @@ public class NettyDemo {
     }
 
     @Test
-    public void testM() {
-        System.out.println(100 % 5);
- 
+    public void testNettyConnect() throws Exception {
+        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(1);
+        final NioSocketChannel nioSocketChannel = new NioSocketChannel();
+        nioEventLoopGroup.register(nioSocketChannel);
+
+        final ChannelFuture connect =
+                nioSocketChannel.connect(new InetSocketAddress("127.0.0.1", 9000));
+        nioSocketChannel.writeAndFlush(Unpooled.copiedBuffer("wocao".getBytes())).sync();
+        nioSocketChannel.pipeline().addLast(new ChannelInboundHandlerAdapter() {
+
+            @Override
+            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                ByteBuf byteBuf = (ByteBuf) msg;
+                final CharSequence charSequence = byteBuf
+                        .getCharSequence(0,
+                                byteBuf.readableBytes(),
+                                CharsetUtil.UTF_8
+                        );
+                System.out.println(charSequence);
+            }
+        });
+        connect.channel().closeFuture().sync();
+    }
+
+    @Test
+    public void testNettyConnectBootStrap() throws Exception {
+        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(1);
+        ChannelFuture channelFuture = new Bootstrap()
+                .group(nioEventLoopGroup)
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInboundHandlerAdapter() {
+                    @Override
+                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                        ByteBuf byteBuf = (ByteBuf) msg;
+                        System.out.println((byteBuf.getCharSequence(0, byteBuf.readableBytes(), CharsetUtil.UTF_8)));
+                    }
+                })
+                .connect(new InetSocketAddress("127.0.0.1",
+                        9000)
+                );
+        channelFuture.sync().channel().closeFuture().sync();
+    }
+
+    @Test
+    public void testNettyServer() throws Exception {
+        final NioServerSocketChannel nioServerSocketChannel = new NioServerSocketChannel();
+        final NioEventLoopGroup eventExecutors = new NioEventLoopGroup(1);
+        eventExecutors.register(nioServerSocketChannel);
+        final ChannelFuture channelFuture = nioServerSocketChannel.bind(new InetSocketAddress(9000));
+        channelFuture.channel().pipeline().addLast(new ChannelInboundHandlerAdapter() {
+
+            @Override
+            public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+
+
+                NioSocketChannel client = (NioSocketChannel) msg;
+                client.pipeline().addLast(new SimpleChannelInboundHandler<String>() {
+                    @Override
+                    protected void channelRead0(ChannelHandlerContext ctx, String msg) throws Exception {
+                        System.out.println(msg);
+                    }
+//                    @Override
+//                    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+//                        ByteBuf byteBuf = (ByteBuf) msg;
+//                        System.out.println(byteBuf.getCharSequence(0, byteBuf.readableBytes(), CharsetUtil.UTF_8));
+//                    }
+                });
+                eventExecutors.register(client);
+
+                System.out.println(msg.getClass());
+            }
+        });
+        channelFuture.channel().closeFuture().sync();
     }
 }
